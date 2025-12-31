@@ -61,24 +61,33 @@ def stream_response(user_question):
     for chunk in stream:
         if chunk.choices[0].delta.content:
             yield chunk.choices[0].delta.content
-
 st.set_page_config(page_title="Health Chatbot", page_icon="🩺", layout="centered")
-
 st.title("🩺 General Health Query Chatbot")
 st.write("Ask general health-related questions. This chatbot does **not** replace a doctor.")
 
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
 user_input = st.text_input("Enter your health question:")
 
-if st.button("Ask"):
-    if user_input.strip() == "":
-        st.warning("Please enter a question.")
-    else:
-        with st.chat_message("assistant"):
-            response_placeholder = st.empty()
-            full_response = ""
-            for token in stream_response(user_input):
-                full_response += token
-                response_placeholder.markdown(full_response)
-        st.chat_message("user").markdown(f"**You:** {user_input}")  
-        st.chat_message("assistant").markdown(f"**Bot:** {full_response}")
-        
+if st.button("Ask") and user_input.strip():
+    # Add user message to chat history
+    st.session_state.chat_history.append({"role": "user", "content": user_input})
+
+    # Display chat messages
+    for msg in st.session_state.chat_history:
+        if msg["role"] == "user":
+            st.chat_message("user").markdown(msg["content"])
+        else:
+            st.chat_message("assistant").markdown(msg["content"])
+
+    # Add assistant placeholder for streaming
+    with st.chat_message("assistant"):
+        response_placeholder = st.empty()
+        full_response = ""
+        for token in stream_response(user_input):
+            full_response += token
+            response_placeholder.markdown(full_response)
+    
+    # Save assistant response to chat history
+    st.session_state.chat_history.append({"role": "assistant", "content": full_response})
