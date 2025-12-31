@@ -1,31 +1,37 @@
-import os
+from pathlib import Path
 import pickle
+import os
 import streamlit as st
-from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
 
-load_dotenv()  
+# ------------------- LOAD HF TOKEN -------------------
 HF_TOKEN = os.getenv("HF_TOKEN")
 if HF_TOKEN is None:
-    st.error("HF_TOKEN not found in .env file. Please add it.")
+    st.warning("HF_TOKEN not found. Make sure to set it in Streamlit Secrets.")
     st.stop()
 
-with open("prompts/health_prompt.pkl", "rb") as f:
+# ------------------- LOAD PROMPT PICKLE -------------------
+BASE_DIR = Path(__file__).parent  # general_health_chatbot folder
+PROMPT_PATH = BASE_DIR / "prompts" / "health_prompt.pkl"
+
+if not PROMPT_PATH.exists():
+    st.error(f"Pickle file not found: {PROMPT_PATH}")
+    st.stop()
+
+with open(PROMPT_PATH, "rb") as f:
     prompt_bundle = pickle.load(f)
 
 SYSTEM_PROMPT = prompt_bundle["system_prompt"]
 is_unsafe_question = prompt_bundle["safety_function"]
 
+# ------------------- HF CLIENT -------------------
 client = InferenceClient(
     model="mistralai/Mistral-7B-Instruct-v0.2",
     token=HF_TOKEN
 )
 
+# ------------------- STREAM RESPONSE FUNCTION -------------------
 def stream_response(user_question):
-    """
-    Streams response from Hugging Face LLM.
-    Handles unsafe questions with warning.
-    """
     if is_unsafe_question(user_question):
         yield "⚠️ I can’t provide medical treatment or prescriptions. Please consult a qualified healthcare professional."
         return
@@ -46,10 +52,9 @@ def stream_response(user_question):
         if chunk.choices[0].delta.content:
             yield chunk.choices[0].delta.content
 
-st.set_page_config(page_title="Health Chatbot", page_icon="🩺", layout="centered")
-
+# ------------------- STREAMLIT UI -------------------
+st.set_page_config(page_title="Health Chatbot", layout="centered")
 st.title("🩺 General Health Query Chatbot")
-st.write("Ask general health-related questions. This chatbot does **not** replace a doctor.")
 
 user_input = st.text_input("Enter your health question:")
 
